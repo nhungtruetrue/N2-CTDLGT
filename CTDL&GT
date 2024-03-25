@@ -1,0 +1,223 @@
+#include <iostream>
+#include <queue>
+#include <utility>
+#include <cstring>
+#include <climits>
+using namespace std;
+#define N 5
+#define INF INT_MAX
+struct Node
+{
+    // luu tru duong di
+    pair<int, int> path[N];
+    int giamMT[N][N];
+    int LB;
+    // stores the current city number
+    int TP_hien_tai;
+    // stores the total number of cities visited so far
+    int level;
+};
+//parentMT là ma trận cha của ma trận hiện tại
+Node* newNode(int parentMT[N][N], pair<int, int> const path[N],
+    int level, int i, int j) // tu thanh pho i den thanh pho j
+{
+    Node* node = new Node;
+
+    memcpy(node->path, path, sizeof node->path);
+
+    //bo qua nut goc
+    if (level != 0)
+    {
+        // Them duong di hien tai vao mang
+        node->path[level - 1] = make_pair(i, j);
+    }
+
+    // copy data từ ma trận hiện tại đến ma trận cha
+    memcpy(node->giamMT, parentMT,
+        sizeof node->giamMT);
+
+    // thay đổi hàng i, cột j thành INF bỏ qua nút gốc
+    for (int k = 0; level != 0 && k < N; k++)
+    {
+        // set hàng i
+        node->giamMT[i][k] = INF;
+        // set cột j
+        node->giamMT[k][j] = INF;
+    }
+
+    // Set j->0 
+    node->giamMT[j][0] = INF;
+
+    // xem da di duoc bao xa
+    node->level = level;
+
+    // đánh dấu thành phố hiện tại là j
+    node->TP_hien_tai = j;
+
+    return node;
+}
+
+// Giảm hàng
+void rowReduction(int giamMT[N][N], int row[N])
+{
+    // initialize row array to INFINITY
+    fill_n(row, N, INF);
+
+    // tìm giá trị nhỏ nhất trong hàng 
+    for (int i = 0; i < N; i++)
+    {
+        for (int j = 0; j < N; j++)
+        {
+            if (giamMT[i][j] < row[i])//row[i] là giá trị nhỏ nhất sẽ được so sánh với từng giá trị trong hàng ủa ma trận đã rút gọn giamMT[i][j]
+            {
+                row[i] = giamMT[i][j];//cập nhật giá trị row[i] mới nếu tìm được giá trị nhỏ hơn
+            }
+        }
+    }
+
+    // trừ từng phần tử trong hàng i với giá trị row[i] tương ứng
+    for (int i = 0; i < N; i++)
+    {
+        for (int j = 0; j < N; j++)
+        {
+            if (giamMT[i][j] != INF && row[i] != INF)//bỏ qua những phần tử INF
+            {
+                giamMT[i][j] -= row[i];
+            }
+        }
+    }
+}
+
+// Giảm cột tương tự
+void columnReduction(int giamMT[N][N], int col[N])
+{
+    // initialize all elements of array col with INFINITY
+    fill_n(col, N, INF);
+
+    for (int j = 0; j < N; j++)
+    {
+        for (int i = 0; i < N; i++)
+        {
+            if (giamMT[i][j] < col[j])
+            {
+                col[j] = giamMT[i][j];
+            }
+        }
+    }
+    for (int j = 0; j < N; j++)
+    {
+        for (int i = 0; i < N; i++)
+        {
+            if (giamMT[i][j] != INF && col[j] != INF)
+            {
+                giamMT[i][j] -= col[j];
+            }
+        }
+    }
+}
+
+// Hàm tính Lower Bound
+int LowerBound(int giamMT[N][N])
+{
+    int LB = 0;
+
+    // giảm hàng
+    int row[N];
+    rowReduction(giamMT, row);
+
+    //giảm cột
+    int col[N];
+    columnReduction(giamMT, col);
+
+    // the total expected cost is the sum of all reductions
+    for (int i = 0; i < N; i++)
+    {
+        LB += (row[i] != INT_MAX) ? row[i] : 0,
+            LB += (col[i] != INT_MAX) ? col[i] : 0;
+    }
+
+    return LB;
+}
+
+// IN lộ trình
+void printPath(pair<int, int> const path[N])
+{
+    for (int i = 0; i < N; i++)
+    {
+        cout << path[i].first + 1 << " => " << path[i].second + 1 << endl;
+    }
+}
+
+// Cơ sở cho hàng đợi ưu tiên xếp theo thứ tự giảm dần Lower bound . nhưng khi lấy phần tử đầu tiên sẽ lấy phần tử nhỏ nhất
+struct comp
+{
+    bool operator()(const Node* lhs, const Node* rhs) const
+    {
+        return lhs->LB > rhs->LB;
+    }
+};
+
+// TSP using Branch and Bound
+int solve(int costMatrix[N][N])
+{
+    // Tạo hàng đợi ưu tiên 
+    priority_queue<Node*, vector<Node*>, comp> pq;
+    // Cú pháp hàm priority_queue<Kiểu DL, container , hàm so sánh> 
+
+    pair<int, int> v[N];
+
+    // Tạo node gốc 
+    Node* root = newNode(costMatrix, v, 0, -1, 0);
+
+    // LB nút gốc
+    root->LB = LowerBound(root->giamMT);
+
+    // thêm root vào hàng đợi ưu tiên . push là 1 phương thức
+    pq.push(root);
+
+    while (!pq.empty())// vòng lặp kiểm tra xem hàng đợi có rỗng hay không
+    {
+        Node* min = pq.top();// Lấy phần tử đầu tiên của hàng đợi
+        pq.pop();// loại bỏ phần tử đầu tiên của hàng đợi
+        int i = min->TP_hien_tai;//thành phố hiện tại của root là 0
+        if (min->level == N - 1)//duyệt xem đã đi được hết các thành phố chưa 
+        {
+            min->path[min->level] = make_pair(i, 0);//nếu rồi thì cho quay lại thành phố đầu và in ra lộ trình
+            printPath(min->path);
+            return min->LB;
+        }
+        for (int j = 1; j < N; j++)
+        {
+            if (min->giamMT[i][j] != INF)// kiểm tra xem có thể nối từ i đến j không
+            {
+
+                Node* child = newNode(min->giamMT, min->path,
+                    min->level + 1, i, j);
+
+                child->LB = min->LB + min->giamMT[i][j] + LowerBound(child->giamMT);
+
+                cout << "Day la level :" << child->level << " From: " << i << " to: " << j << endl;cout << "Lowerbound nut con:" << child->LB << endl;
+                cout << " Lower Bound nut cha" << min->LB <<endl;
+                cout << "------------------" << endl;
+                pq.push(child);
+            }
+        }
+
+        delete min;
+    }
+}
+
+int main()
+{
+    int costMatrix[N][N] =
+    {
+        {INF, 20, 45, 40, 60},
+        {20, INF, 50, 46, 70},
+        {45, 50, INF, 48, 55},
+        {40, 46, 48, INF, 60},
+        {60, 70, 55, 60, INF} };
+
+    cout << "\n\nTotal cost is " << solve(costMatrix);
+
+    return 0;
+}
